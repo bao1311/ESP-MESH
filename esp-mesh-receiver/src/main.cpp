@@ -2,59 +2,60 @@
 #include <painlessMesh.h>
 #include <ArduinoJson.h>
 
-// Ensure LED_BUILTIN is defined for platforms that don't provide it
-#ifndef LED_BUILTIN
-#if defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_ESP32)
-#define LED_BUILTIN 2
-#else
-#define LED_BUILTIN 13
-#endif
-#endif
 
 // Mesh network configuration (must match sender)
-#define MESH_PREFIX "Bao"
+#define MESH_PREFIX "Imposter"
 #define MESH_PASSWORD "12345678"
 #define MESH_PORT 5555
 
+// Random answer back to sender
+char answer[][50] = {"I am Imposter", "All your base are belong to us", "The cake is a lie", "Hello from the other side", "I see dead pixels"};
 // Mesh objects
 Scheduler userScheduler;
 painlessMesh mesh;
 
-// Task to send acknowledgment messages every 10 seconds
-Task taskSendAck(TASK_SECOND * 10, TASK_FOREVER, []() {
-  String ackMsg = "ACK from Receiver Node " + String(mesh.getNodeId()) + " at " + String(millis());
-  Serial.printf("Sending ACK: %s\n", ackMsg.c_str());
+// Task to send acknowledgment messages every 2 seconds (Not really make sense since we send ack only when we receive a message, but just for demo)
+
+Task taskSendAck(TASK_SECOND * 2, TASK_FOREVER, []() {
+  char ackMsg[100] = "Hey, I got your message! I am Imposter";
+  strcat(ackMsg, " - Random fact: ");
+  strcat(ackMsg, answer[random(0, sizeof(answer) / sizeof(answer[0]))]);
+  Serial.printf("I am sending this back to the sender: %s\n", ackMsg);
   mesh.sendBroadcast(ackMsg);
 });
 
 // Callback when message is received
-void receivedCallback(uint32_t from, String &msg) {
-  Serial.printf("📨 RECEIVED from node %u: %s\n", from, msg.c_str());
-  
-  // Blink built-in LED to show message received
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(50);
-  digitalWrite(LED_BUILTIN, LOW);
-  
-  // Count received messages
-  static int messageCount = 0;
-  messageCount++;
-  Serial.printf("Total messages received: %d\n", messageCount);
+void receivedCb(uint32_t from, char *msg) {
+  Serial.printf("Hey I received a message from %u: %s\n", from, msg);
+}
+
+void receivedCallbackLegit(uint32_t from, char* msg)
+{
+  // Debug print
+  Serial.printf("Hey I received a message from %u: %s\n", from, msg);
+  // Send acknowledgment back to sender 
+  char ackMsg[100] = "Hey, I got your message! I am Imposter";
+  // Generate data
+  strcat(ackMsg, " - Random fact: ");
+  strcat(ackMsg, answer[random(0, sizeof(answer) / sizeof(answer[0]))]);
+  Serial.printf("I am sending this back to the sender: %s\n", ackMsg);
+  // Send
+  mesh.sendBroadcast(ackMsg);
 }
 
 // Callback when new node connects
 void newConnectionCallback(uint32_t nodeId) {
-  Serial.printf("🔗 New node connected: %u\n", nodeId);
+  Serial.printf("Hey, we got a new friend: %u\n", nodeId);
 }
 
 // Callback when node disconnects
 void droppedConnectionCallback(uint32_t nodeId) {
-  Serial.printf("❌ Node %u disconnected\n", nodeId);
+  Serial.printf("Hey, our friend %u disconnected\n", nodeId);
 }
 
 // Callback when connections change
 void changedConnectionCallback() {
-  Serial.printf("🔄 Connections changed\n");
+  Serial.printf("Connections changed\n");
   Serial.printf("Connected nodes: ");
   auto nodes = mesh.getNodeList();
   Serial.printf("(%d total) ", nodes.size());
@@ -73,9 +74,6 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting PainlessMesh Receiver Node...");
   
-  // Initialize built-in LED
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
   
   // Set debug message types before init()
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
@@ -84,19 +82,18 @@ void setup() {
   mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
   
   // Set callbacks
-  mesh.onReceive(&receivedCallback);
+  mesh.onReceive(&receivedCallbackLegit);
   mesh.onNewConnection(&newConnectionCallback);
-  mesh.onDroppedConnection(&droppedConnectionCallback);
-  mesh.onChangedConnections(&changedConnectionCallback);
-  mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
+  // mesh.onDroppedConnection(&droppedConnectionCallback);
+  // mesh.onChangedConnections(&changedConnectionCallback);
+  // mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
   
   // Add and enable the acknowledgment task
   userScheduler.addTask(taskSendAck);
   taskSendAck.enable();
   
-  Serial.printf("🎯 Receiver Node started with ID: %u\n", mesh.getNodeId());
+  Serial.printf("Receiver Node started with ID: %u\n", mesh.getNodeId());
   Serial.println("Ready to receive messages...");
-  Serial.println("LED will blink when messages are received");
 }
 
 void loop() {
