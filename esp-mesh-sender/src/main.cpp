@@ -20,8 +20,11 @@ Task testSendMessage(TASK_SECOND * 1, TASK_FOREVER, []() {
   // Pick a random message
   int index = random(0, sizeof(randomMessage) / sizeof(randomMessage[0]));
   char msg[50] = {};
+  // Copy the selected message into msg
   memcpy(msg, randomMessage[index], sizeof(msg) - 1);
+  // For debugging purpose
   Serial.printf("I am Sending: %s\n", msg);
+  // Send the message to all nodes
   mesh.sendBroadcast(msg);
 });
 // Task taskSendMessage(TASK_SECOND * 5, TASK_FOREVER, []() {
@@ -31,8 +34,8 @@ Task testSendMessage(TASK_SECOND * 1, TASK_FOREVER, []() {
 // });
 
 // Callback when message is received
-void receivedCallback(uint32_t from, String &msg) {
-  Serial.printf("Received from node %u: %s\n", from, msg.c_str());
+void receivedCallback(uint32_t from, char* msg) {
+  Serial.printf("I am currently received from node %u: %s\n", from, msg);
 }
 
 // Callback when new node connects
@@ -47,6 +50,7 @@ void changedConnectionCallback() {
   Serial.printf("Connections changed\n");
   Serial.printf("Connected nodes: ");
   auto nodes = mesh.getNodeList();
+  // Listing all connected nodes
   for (auto node : nodes) {
     Serial.printf("%u ", node);
   }
